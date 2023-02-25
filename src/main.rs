@@ -1,3 +1,4 @@
+mod plot;
 mod posts;
 
 use std::io;
@@ -38,6 +39,15 @@ fn favicon() -> Option<()> {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .mount("/", routes![index, favicon, posts::posts, posts::get_post])
+        .mount(
+            "/",
+            routes![
+                index,
+                favicon,
+                posts::posts,
+                posts::get_post,
+                plot::get_plot
+            ],
+        )
         .mount("/", FileServer::new("app/dist", Options::None).rank(1))
 }

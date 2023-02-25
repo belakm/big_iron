@@ -11,6 +11,7 @@ app = { path = "./app" }
 pulldown-cmark = "0.9.2"
 rocket = "0.5.0-rc.2"
 sycamore = { version = "0.8.0", features = ["ssr"] }
+plotters = { version = "0.3.4" }
 
 [workspace]
 members = ["app"]
