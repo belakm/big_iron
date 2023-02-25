@@ -5,7 +5,7 @@ use rocket::response::status::NotFound;
 
 #[get("/plot")]
 pub async fn get_plot() -> Result<NamedFile, NotFound<String>> {
-    let path: String = String::from("src/charts/1.png");
+    let path: String = String::from("static/1.png");
     // Create a 800*600 bitmap and start drawing
     let mut backend = BitMapBackend::new(&path, (300, 200));
     // And if we want SVG backend
