@@ -1,4 +1,6 @@
+/server/config.toml
 /server/target
 /server/static
+/app/config.toml
 /app/target
 /app/dist

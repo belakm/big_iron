@@ -1,7 +1,9 @@
 #[macro_use]
 extern crate rocket;
 
+mod load_config;
 mod plot;
+mod portfolio;
 
 use rocket::catch;
 use rocket::fs::Options;
@@ -27,7 +29,7 @@ fn default(status: Status, req: &Request) -> String {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .mount("/", routes![plot::get_plot])
+        .mount("/", routes![plot::get_plot, portfolio::get_portfolio])
         .mount("/", FileServer::new("static", Options::None).rank(1))
         .register("/", catchers![internal_error, not_found, default])
 }
