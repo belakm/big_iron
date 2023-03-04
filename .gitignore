@@ -1,6 +1,8 @@
 /server/config.toml
 /server/target
 /server/static
+/server/database.sqlite
+/server/database.sqlite-journal
 /app/config.toml
 /app/target
 /app/dist
