@@ -1,10 +1,10 @@
 mod cli;
 mod database;
+mod formatting;
 mod load_config;
 mod plot;
 mod portfolio;
 
-use chrono::prelude::*;
 use rocket::catch;
 use rocket::fs::Options;
 use rocket::http::Status;
@@ -19,20 +19,8 @@ extern crate rocket;
 
 async fn start_cli() {
     // Startup
-    let mut date_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let mut last_event_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let mut last_event = String::from("Startup");
-    cli::render(&date_time, &last_event, &last_event_time);
-
-    // Get portfolio state
-    last_event_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    last_event = String::from("Startup");
-    cli::render(&date_time, &last_event, &last_event_time);
-
+    cli::render("Starting loop.");
     loop {
-        date_time = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        cli::render(&date_time, &last_event, &last_event_time);
-        // Wait for 5 seconds before next query
         sleep(Duration::from_secs(1)).await;
     }
 }
@@ -56,12 +44,11 @@ fn default(status: Status, req: &Request) -> String {
 async fn rocket() -> _ {
     // Init DB
     database::setup_tables().unwrap();
-    println!("Table setup complete");
+    cli::render("SQLite: table setup complete");
     portfolio::fetch_account_balance_history().await.unwrap();
-    println!("Fetched account status");
+    cli::render("Binance: Account status fetched");
     // Spawn a new task to query data source concurrently with Rocket server
     tokio::spawn(start_cli());
-
     rocket::build()
         .mount("/", routes![plot::get_plot])
         .mount("/", FileServer::new("static", Options::None).rank(1))

@@ -1,14 +1,8 @@
+use crate::formatting::current_timestamp;
 use std::io::{stdout, Write};
 
-pub fn render(current_time: &String, task_name: &String, task_time: &String) {
-    delete_previous_lines(3);
-    print!(
-        "=================
-BIG - IRON @ {:?}
-Last task: {:?} at {:?}
-=================",
-        current_time, task_name, task_time
-    );
+pub fn render(task_name: &str) {
+    println!("> BIG_IRON @ {:?}: {:?}", current_timestamp(), task_name);
     stdout().flush().unwrap(); // flush the output to ensure it's displayed immediately
 }
 

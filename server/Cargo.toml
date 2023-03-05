@@ -15,5 +15,5 @@ binance_spot_connector_rust = "1.0.0"
 toml = "0.7"
 tokio = "1.25"
 chrono = "0.4"
-rusqlite = { version = "0.28.0", features = ["bundled"] }
+rusqlite = { version = "0.28.0", features = ["bundled", "chrono"] }
 lazy_static = "1.4.0"

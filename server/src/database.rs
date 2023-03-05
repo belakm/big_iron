@@ -48,7 +48,8 @@ pub fn setup_tables() -> Result<()> {
             "CREATE TABLE IF NOT EXISTS account_history (
             id INTEGER PRIMARY KEY,
             code INTEGER NOT NULL,
-            msg TEXT NOT NULL
+            msg TEXT NOT NULL,
+            last_queried DATETIME NOT NULL
         )",
             (),
         )
