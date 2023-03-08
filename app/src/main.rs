@@ -12,7 +12,7 @@ fn main() {
         spawn_local_scoped(cx, async move {
             loop {
                 let utc: String = Utc::now().format("%d. %m %Y %H:%M:%S").to_string();
-                TimeoutFuture::new(1000).await;
+                TimeoutFuture::new(3000).await;
                 state.set(utc);
             }
         });
@@ -54,7 +54,7 @@ fn App<'a, G: Html>(cx: Scope<'a>, props: AppProps<'a>) -> View<G> {
                         h2(class="card-title") {
                             "Portfolio"
                         }
-                        img(src=format!("http://localhost:8000/plot?timestamp={}", props.state.get()))
+                        img(src=format!("http://localhost:8000/plot/account_balance_history?timestamp={}", props.state.get()))
                     }
                 }
             }
