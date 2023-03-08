@@ -1,9 +1,13 @@
 use rusqlite::{Connection, Result};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 lazy_static::lazy_static! {
-    pub static ref DATABASE_CONNECTION: Mutex<Connection> =
-        Mutex::new(Connection::open("database.sqlite").unwrap());
+    pub static ref DATABASE_CONNECTION: Arc<Mutex<Connection>> =
+        Arc::new(Mutex::new(Connection::open("database.sqlite").unwrap()));
+}
+
+pub fn get_database_connection() -> rusqlite::Connection {
+    Connection::open("database.sqlite").unwrap()
 }
 
 pub fn setup_tables() -> Result<()> {

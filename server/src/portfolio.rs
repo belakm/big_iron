@@ -4,25 +4,25 @@ use crate::{
 };
 use binance_spot_connector_rust::{http::Credentials, ureq::BinanceHttpClient, wallet};
 use chrono::{prelude::*, Duration};
-use rusqlite::{params, Result};
+use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BalanceSnapshotItem {
     asset: String,
     free: String,
     locked: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BalanceSnapshot {
     balances: Vec<BalanceSnapshotItem>,
     #[serde(rename = "totalAssetOfBtc")]
     total_asset_of_btc: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Snapshot {
     data: BalanceSnapshot,
     #[serde(rename = "updateTime")]
@@ -31,7 +31,7 @@ pub struct Snapshot {
     wallet_type: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AccountHistory {
     code: i32,
     msg: String,
@@ -73,6 +73,10 @@ fn insert_account_history(account_history: &AccountHistory) -> Result<()> {
     let has_last_queried_today = stmt.exists(params![timestamp])?;
 
     if !has_last_queried_today {
+        conn.execute(
+            "DELETE FROM account_history; DELETE FROM snapshot; DELETE FROM balances;",
+            (),
+        )?;
         // Insert account_history data
         conn.execute(
             "INSERT INTO account_history (code, msg, last_queried) VALUES (?1, ?2, ?3)",
@@ -101,4 +105,57 @@ fn insert_account_history(account_history: &AccountHistory) -> Result<()> {
 
     // Commit transaction
     Ok(())
+}
+
+pub fn get_account_history_with_snapshots(conn: &Connection) -> Result<Option<AccountHistory>> {
+    let mut stmt = conn.prepare(
+        "SELECT account_history.*, snapshots.id as snapshot_id, snapshots.total_asset_of_btc, snapshots.update_time, snapshots.wallet_type, balances.id as balances_id, balances.asset, balances.free, balances.locked 
+        FROM account_history 
+        INNER JOIN snapshots ON account_history.id = snapshots.id 
+        INNER JOIN balances ON snapshots.id = balances.snapshot_id 
+		WHERE free IS NOT 0",
+    )?;
+
+    // id, code, msg, last_queried, snapshot_id, total_asset_of_btc, update_time, wallet_type, balances_id, asset, free,
+    // locked
+
+    let rows = stmt.query_map([], |row| {
+        let mut snapshot = Snapshot {
+            data: BalanceSnapshot {
+                balances: Vec::new(),
+                total_asset_of_btc: row.get(5)?,
+            },
+            update_time: row.get(6)?,
+            wallet_type: row.get(7)?,
+        };
+        snapshot.data.balances.push(BalanceSnapshotItem {
+            asset: row.get(9)?,
+            free: row.get(10)?,
+            locked: row.get(11)?,
+        });
+
+        Ok((snapshot, row.get(1)?, row.get(2)?))
+    })?;
+
+    let mut account_history = None;
+
+    for row in rows {
+        let (snapshot, code, msg) = row?;
+
+        if account_history.is_none() {
+            account_history = Some(AccountHistory {
+                code,
+                msg,
+                snapshot_vos: vec![snapshot],
+            });
+        } else {
+            account_history
+                .as_mut()
+                .unwrap()
+                .snapshot_vos
+                .push(snapshot);
+        }
+    }
+
+    Ok(account_history)
 }

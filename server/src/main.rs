@@ -4,6 +4,7 @@ mod formatting;
 mod load_config;
 mod plot;
 mod portfolio;
+mod server_error;
 
 use rocket::catch;
 use rocket::fs::Options;
@@ -50,7 +51,7 @@ async fn rocket() -> _ {
     // Spawn a new task to query data source concurrently with Rocket server
     tokio::spawn(start_cli());
     rocket::build()
-        .mount("/", routes![plot::get_plot])
+        .mount("/", routes![plot::account_balance_history])
         .mount("/", FileServer::new("static", Options::None).rank(1))
         .register("/", catchers![internal_error, not_found, default])
 }
