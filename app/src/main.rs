@@ -30,13 +30,12 @@ struct AppProps<'a> {
 #[component]
 fn App<'a, G: Html>(cx: Scope<'a>, props: AppProps<'a>) -> View<G> {
     view! {cx,
-        div(class="page-wrapper with-navbar with-sidebar") {
+        div(class="page-wrapper with-navbar") {
             nav(class="navbar") {
                 div(class="content") {
                     "🦀  BIG IRON"
                 }
             }
-            div(class="sidebar") {}
             div(class="content-wrapper") {
                 div(class="content") {
                     section(class="card") {
@@ -54,7 +53,7 @@ fn App<'a, G: Html>(cx: Scope<'a>, props: AppProps<'a>) -> View<G> {
                         h2(class="card-title") {
                             "Portfolio"
                         }
-                        img(src=format!("http://localhost:8000/plot/account_balance_history?timestamp={}", props.state.get()))
+                        img(style="width: 100%;", src=format!("http://localhost:8000/plot/account_balance_history?timestamp={}", props.state.get()))
                     }
                 }
             }

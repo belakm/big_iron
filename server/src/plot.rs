@@ -14,36 +14,53 @@ async fn plot_account_balance() -> Result<(), ServerError> {
         get_account_history_with_snapshots(&DATABASE_CONNECTION.clone().lock().unwrap());
 
     match account_balance_history {
-        Ok(balance) => {
-            println!("{:?}", balance);
+        Ok(balance_history) => {
+            let balance_history = balance_history
+                .snapshot_vos
+                .iter()
+                .enumerate()
+                .map(|(index, snap)| (index as f32, snap.data.total_asset_of_btc.parse().unwrap()));
+
+            let (min, max) = balance_history
+                .clone()
+                .into_iter()
+                .fold((20f32, 0f32), |acc, (_, snap)| {
+                    (acc.0.min(snap), acc.1.max(snap))
+                });
+            let (min, max) = (min * 0.9, max * 1.1);
+            println!("{:1?} {:2?}", min, max);
+
             let drawing_area = SVGBackend::new(&PATH, (1024, 768)).into_drawing_area();
-            // let history_data = vec![balance];
-            // drawing_area.fill(&WHITE);
 
             // Chart metadata
             let mut chart = ChartBuilder::on(&drawing_area)
-                .caption("y=x^2", ("Arial", 50).into_font())
+                .caption("Balance over time", ("monospace", 50).into_font())
                 .margin(5)
                 .x_label_area_size(30)
                 .y_label_area_size(30)
-                .build_cartesian_2d(-1f32..1f32, -0.1f32..1f32)
+                .build_cartesian_2d(0f32..balance_history.len() as f32, min..max)
                 .unwrap();
 
-            chart.configure_mesh().draw().unwrap();
+            chart
+                .configure_mesh()
+                .bold_line_style(&WHITE.mix(0.2))
+                .light_line_style(&WHITE.mix(0.01))
+                .axis_style(&WHITE)
+                .x_label_style(&WHITE)
+                .y_label_style(&WHITE)
+                .draw()
+                .unwrap();
 
             chart
-                .draw_series(LineSeries::new(
-                    (-50..=50).map(|x| x as f32 / 50.0).map(|x| (x, x * x)),
-                    &RED,
-                ))
+                .draw_series(LineSeries::new(balance_history, &GREEN))
                 .map_err(|e| MAP_TO_500(&e.to_string()))?
-                .label("y = x^2")
-                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+                .label("Balance over time")
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
 
             chart
                 .configure_series_labels()
                 .background_style(&WHITE.mix(0.8))
-                .border_style(&BLACK)
+                .border_style(&WHITE)
                 .draw()
                 .map_err(|e| MAP_TO_500(&e.to_string()))
         }
