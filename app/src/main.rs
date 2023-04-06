@@ -12,7 +12,7 @@ fn main() {
         spawn_local_scoped(cx, async move {
             loop {
                 let utc: String = Utc::now().format("%d. %m %Y %H:%M:%S").to_string();
-                TimeoutFuture::new(3000).await;
+                TimeoutFuture::new(10000).await;
                 state.set(utc);
             }
         });

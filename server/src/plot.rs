@@ -9,7 +9,7 @@ use rocket::get;
 
 static PATH: &str = "static/account_balance.svg";
 
-async fn plot_account_balance() -> Result<(), ServerError> {
+pub async fn plot_account_balance() -> Result<(), ServerError> {
     let account_balance_history =
         get_account_history_with_snapshots(&DATABASE_CONNECTION.clone().lock().unwrap());
 
@@ -28,7 +28,6 @@ async fn plot_account_balance() -> Result<(), ServerError> {
                     (acc.0.min(snap), acc.1.max(snap))
                 });
             let (min, max) = (min * 0.9, max * 1.1);
-            println!("{:1?} {:2?}", min, max);
 
             let drawing_area = SVGBackend::new(&PATH, (1024, 768)).into_drawing_area();
 
@@ -65,16 +64,5 @@ async fn plot_account_balance() -> Result<(), ServerError> {
                 .map_err(|e| MAP_TO_500(&e.to_string()))
         }
         Err(error) => Err(MAP_TO_500(&error.to_string())),
-    }
-}
-
-#[get("/plot/account_balance_history")]
-pub async fn account_balance_history() -> Result<NamedFile, ServerError> {
-    let plot = plot_account_balance().await;
-    match plot {
-        Ok(_) => NamedFile::open(&PATH)
-            .await
-            .map_err(|e| MAP_TO_404(&e.to_string())),
-        Err(err) => Err(err),
     }
 }
