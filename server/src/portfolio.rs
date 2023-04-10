@@ -2,7 +2,7 @@ use crate::{
     database::DATABASE_CONNECTION,
     load_config::{self, Config},
 };
-use binance_spot_connector_rust::{http::Credentials, ureq::BinanceHttpClient, wallet};
+use binance_spot_connector_rust::{http::Credentials, market, ureq::BinanceHttpClient, wallet};
 use chrono::prelude::*;
 use rusqlite::{Connection, Result};
 use serde::{Deserialize, Serialize};

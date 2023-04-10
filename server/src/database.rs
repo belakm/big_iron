@@ -2,9 +2,10 @@ use sqlx::{Pool, Sqlite, SqlitePool};
 use std::{fs::File, path::Path};
 use tokio::sync::OnceCell;
 
-static DB_POOL: OnceCell<Pool<Sqlite>> = OnceCell::const_new();
+pub static DB_POOL: OnceCell<Pool<Sqlite>> = OnceCell::const_new();
 
 pub async fn initialize() -> Result<(), String> {
+    println!("Initializing database.");
     match set_connection().await {
         Ok(_) => {
             setup_tables().await?;
@@ -40,7 +41,6 @@ pub async fn setup_tables() -> Result<(), String> {
         Some(connection) => {
             let init_statement = sqlx::query(
                 "BEGIN;
-        
         CREATE TABLE IF NOT EXISTS balances (
             id INTEGER PRIMARY KEY,
             asset TEXT NOT NULL,
@@ -61,21 +61,25 @@ pub async fn setup_tables() -> Result<(), String> {
             msg TEXT NOT NULL,
             last_queried DATETIME NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS history (
+        CREATE TABLE IF NOT EXISTS klines (
             id INTEGER PRIMARY KEY,
-            open REAL NOT NULL,
-            close REAL NOT NULL,
+            symbol TEXT NOT NULL,
+            open_time INTEGER NOT NULL, 
+            open REAL NOT NULL, 
             high REAL NOT NULL,
-            low REAL NOT NULL,
-            timestamp INTEGER NOT NULL,
-            symbol TEXT NOT NULL    
+            low REAL NOT NULL, 
+            close REAL NOT NULL, 
+            volume REAL NOT NULL, 
+            close_time INTEGER NOT NULL, 
+            quote_asset_volume REAL NOT NULL, 
+            number_of_trades INTEGER NOT NULL,
+            taker_buy_base_asset_volume REAL NOT NULL, 
+            taker_buy_quote_asset_volume REAL NOT NULL
         );
         COMMIT;",
             )
             .execute(connection)
             .await;
-
-            println!("Yippi {:?}", init_statement);
 
             match init_statement {
                 Ok(_) => Ok(()),

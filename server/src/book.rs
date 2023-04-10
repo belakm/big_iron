@@ -1,13 +1,39 @@
+use crate::{
+    database::DB_POOL,
+    formatting::timestamp_to_string,
+    load_config::{read_config, Config},
+};
 use binance_spot_connector_rust::{
-    market::klines::KlineInterval, market_stream::kline::KlineStream,
+    http::Credentials,
+    hyper::BinanceHttpClient,
+    market::{self, klines::KlineInterval},
+    market_stream::kline::KlineStream,
     tungstenite::BinanceWebSocketClient,
 };
+use rocket::futures::TryFutureExt;
+use serde::Deserialize;
 use std::time::Duration;
 use tokio::time::sleep;
 
+#[derive(Debug, Deserialize)]
+struct Kline {
+    open_time: i64,
+    open: String,
+    high: String,
+    low: String,
+    close: String,
+    volume: String,
+    close_time: i64,
+    quote_asset_volume: String,
+    trades: i64,
+    taker_buy_base_asset_volume: String,
+    taker_buy_quote_asset_volume: String,
+    ignore: String,
+}
+
 const BINANCE_WSS_BASE_URL: &str = "wss://stream.binance.com:9443/ws";
 
-pub async fn subscribe_to_price_updates() {
+async fn subscribe_to_price_updates() {
     // Establish connection
     let mut conn =
         BinanceWebSocketClient::connect_with_url(BINANCE_WSS_BASE_URL).expect("Failed to connect");
@@ -34,11 +60,116 @@ async fn update() {
     }
 }
 
-fn get_portfolio() {}
+pub async fn fetch_history() -> Result<(), String> {
+    let symbol = "BTCUSDT";
+    println!("Fetching {} history.", symbol);
+    let config: Config = read_config();
+    let credentials = Credentials::from_hmac(
+        config.binance_api_key.to_owned(),
+        config.binance_api_secret.to_owned(),
+    );
+    let mut klines: Vec<Kline> = Vec::new();
+    let mut start_time: i64 = 0;
+    let client = BinanceHttpClient::default().credentials(credentials);
+    loop {
+        if start_time > 1503055199000 {
+            break;
+        }
+        println!(
+            "Loading candles from: {:?}",
+            timestamp_to_string(start_time)
+        );
+        let request = market::klines(symbol, KlineInterval::Minutes1)
+            .start_time(start_time as u64)
+            .limit(1000);
 
-pub async fn main() {
+        let data = client
+            .send(request)
+            .map_err(|_| "Error sending binance request.")
+            .await?;
+
+        let data = data
+            .into_body_str()
+            .map_err(|_| "Failed parsing binance data.")
+            .await?;
+
+        let data: Vec<(
+            i64,
+            String,
+            String,
+            String,
+            String,
+            String,
+            i64,
+            String,
+            i64,
+            String,
+            String,
+            String,
+        )> = serde_json::from_str(&data).unwrap();
+        let mut new_klines: Vec<Kline> = Vec::new();
+        for inner_array in data {
+            let kline = Kline {
+                open_time: inner_array.0,
+                open: inner_array.1,
+                high: inner_array.2,
+                low: inner_array.3,
+                close: inner_array.4,
+                volume: inner_array.5,
+                close_time: inner_array.6,
+                quote_asset_volume: inner_array.7,
+                trades: inner_array.8,
+                taker_buy_base_asset_volume: inner_array.9,
+                taker_buy_quote_asset_volume: inner_array.10,
+                ignore: inner_array.11,
+            };
+            new_klines.push(kline);
+        }
+
+        let last_kline = new_klines.last(); // we know Vec has items at
+                                            // this point
+        match last_kline {
+            Some(last_kline) => {
+                start_time = last_kline.close_time;
+                klines.extend(new_klines);
+            }
+            None => break,
+        };
+        sleep(Duration::from_secs(1)).await;
+    }
+    if klines.is_empty() {
+        Err(String::from("No history klines inserted."))
+    } else {
+        let connection = DB_POOL.get().unwrap();
+        for kline in klines {
+            sqlx::query(
+                r#"
+                    INSERT INTO klines (symbol, open_time, open, high, low, close, volume, close_time, quote_asset_volume, number_of_trades, taker_buy_base_asset_volume, taker_buy_quote_asset_volume)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                "#,
+            )
+            .bind(symbol)
+            .bind(kline.open_time)
+            .bind(kline.open)
+            .bind(kline.high)
+            .bind(kline.low)
+            .bind(kline.close)
+            .bind(kline.volume)
+            .bind(kline.close_time)
+            .bind(kline.quote_asset_volume)
+            .bind(kline.trades)
+            .bind(kline.taker_buy_base_asset_volume)
+            .bind(kline.taker_buy_quote_asset_volume)
+            .execute(connection).map_err(|e| format!("Error inserting a kline into Database. {:?}", e)).await?;
+        }
+        Ok(())
+    }
+}
+
+pub async fn main() -> Result<(), String> {
+    println!("Starting book proccess.");
     // start updating book records
-    get_portfolio();
     tokio::spawn(update());
     tokio::spawn(subscribe_to_price_updates());
+    Ok(())
 }

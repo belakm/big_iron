@@ -1,15 +1,18 @@
-// mod api;
 mod book;
 mod database;
-// mod formatting;
+mod formatting;
+mod load_config;
+// mod api;
 // mod plot;
 // mod prediction_model;
 
 use rocket::catch;
 use rocket::fs::FileServer;
 use rocket::fs::Options;
+use rocket::futures::TryFutureExt;
 use rocket::http::Status;
 use rocket::Request;
+use tokio::runtime::Runtime;
 
 #[macro_use]
 extern crate rocket;
@@ -30,21 +33,35 @@ fn default(status: Status, req: &Request) -> String {
 }
 
 #[rocket::main]
-async fn main() -> Result<(), String> {
-    match database::initialize().await {
-        Ok(_) => {
-            tokio::spawn(book::main());
-            let rocket_startup =
-                rocket::build() // .mount("/", routes![api::account_balance_history])
-                    .mount("/", FileServer::new("static", Options::None).rank(1))
-                    .register("/", catchers![internal_error, not_found, default])
-                    .launch()
-                    .await;
-            match rocket_startup {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.to_string()),
-            }
-        }
-        Err(e) => Err(e.to_string()),
+async fn start_rocket() -> Result<(), String> {
+    println!("Igniting rocket.");
+    match rocket::build() // .mount("/", routes![api::account_balance_history])
+        .mount("/", FileServer::new("static", Options::None).rank(1))
+        .register("/", catchers![internal_error, not_found, default])
+        .launch()
+        .map_err(|e| e.to_string())
+        .await
+    {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
     }
+}
+
+fn main() {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        // Call your async functions in sequence
+        let init1 = database::initialize().await;
+        let init2 = book::fetch_history().await;
+
+        // TODO: find better matching mechanism
+        match (init1, init2) {
+            (Ok(_), Ok(_)) => {}
+            (Ok(_), Err(e)) => println!("{:?}", e),
+            (Err(e), Ok(_)) => println!("{:?}", e),
+            (Err(e1), Err(e2)) => println!("{:1?} {:2?}", e1, e2),
+        }
+    });
+    rt.spawn(book::main());
+    start_rocket().unwrap();
 }
