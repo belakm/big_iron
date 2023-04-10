@@ -126,6 +126,6 @@ ret_importance_model[!is.finite(ret_importance_model)] <- NA
 
 print(ret_importance_model)
 
-result <- "Hej Tilen iz tvoje R skripte" 
+result <- "hello" 
 
 cat(result)
