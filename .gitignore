@@ -3,6 +3,7 @@
 /server/static
 /server/database.sqlite
 /server/database.sqlite-journal
+/server/renv
 /app/config.toml
 /app/target
 /app/dist

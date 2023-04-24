@@ -3,6 +3,7 @@ mod database;
 mod formatting;
 mod load_config;
 mod prediction_model;
+mod rlang_runner;
 // mod api;
 // mod plot;
 
@@ -48,20 +49,26 @@ async fn start_rocket() -> Result<(), String> {
 }
 
 fn main() {
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
-        // Call your async functions in sequence
-        let init1 = database::initialize().await;
-        /*let init2 = book::fetch_history("BTCUSDT").await;
+    // Init R libs
+    match rlang_runner::r_script("renv_install.R", None) {
+        Ok(_) => {
+            let rt = Runtime::new().unwrap();
+            rt.block_on(async {
+                // Call your async functions in sequence
+                let init1 = database::initialize().await;
+                /*let init2 = book::fetch_history("BTCUSDT").await;
 
-        // TODO: find better matching mechanism
-        match (init1, init2) {
-            (Ok(_), Ok(_)) => {}
-            (Ok(_), Err(e)) => println!("{:?}", e),
-            (Err(e), Ok(_)) => println!("{:?}", e),
-            (Err(e1), Err(e2)) => println!("{:1?} {:2?}", e1, e2),
-        }*/
-    });
-    rt.spawn(book::main());
-    start_rocket().unwrap();
+                // TODO: find better matching mechanism
+                match (init1, init2) {
+                    (Ok(_), Ok(_)) => {}
+                    (Ok(_), Err(e)) => println!("{:?}", e),
+                    (Err(e), Ok(_)) => println!("{:?}", e),
+                    (Err(e1), Err(e2)) => println!("{:1?} {:2?}", e1, e2),
+                }*/
+            });
+            rt.spawn(book::main());
+            start_rocket().unwrap();
+        }
+        Err(e) => println!("Error in R: {:?}", e),
+    }
 }

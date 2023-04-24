@@ -23,11 +23,11 @@ prediction <- predict(model, newdata = data)
 # Output either "buy", "sell" or "none"
 # All other output will be treated as "none" and ignored
 
-output <- "none"
-if (prediction >= 0.5) {  
-  output <- "buy" 
-} else {  
-  output <- "sell"
+output <- "hold"
+if (prediction > 0.7) {  
+  output <- "sell" 
+} else if (prediction < -0.7) {  
+  output <- "buy"
 }
 
 cat(output)
