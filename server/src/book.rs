@@ -12,11 +12,13 @@ use binance_spot_connector_rust::{
 };
 use rocket::futures::TryFutureExt;
 use serde::Deserialize;
+use sqlx::{Pool, Sqlite};
 use std::time::Duration;
 use tokio::time::sleep;
 
 #[derive(Debug, Deserialize)]
 struct Kline {
+    symbol: String,
     open_time: i64,
     open: String,
     high: String,
@@ -31,6 +33,35 @@ struct Kline {
     ignore: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct WebsocketKline {
+    t: i64,    // Kline start time
+    T: i64,    // Kline close time
+    s: String, // Symbol
+    i: String, // Interval
+    f: i64,    // First trade ID
+    L: i64,    // Last trade ID
+    o: String, // Open price
+    c: String, // Close price
+    h: String, // High price
+    l: String, // Low price
+    v: String, // Base asset volume
+    n: i64,    // Number of trades
+    x: bool,   // Is this kline closed?
+    q: String, // Quote asset volume
+    V: String, // Taker buy base asset volume
+    Q: String, // Taker buy quote asset volume
+    B: String, // Ignore
+}
+
+#[derive(Debug, Deserialize)]
+struct WebsocketResponse {
+    e: String, // Event type
+    E: i64,    // Event time
+    s: String, // Symbol
+    k: WebsocketKline,
+}
+
 const BINANCE_WSS_BASE_URL: &str = "wss://stream.binance.com:9443/ws";
 
 async fn subscribe_to_price_updates() {
@@ -40,13 +71,45 @@ async fn subscribe_to_price_updates() {
     // Subscribe to streams
     conn.subscribe(vec![
         &KlineStream::new("BTCUSDT", KlineInterval::Minutes1).into(),
-        &KlineStream::new("BNBBUSD", KlineInterval::Minutes3).into(),
+        // &KlineStream::new("BNBBUSD", KlineInterval::Minutes3).into(),
     ]);
     // Read messages
     while let Ok(message) = conn.as_mut().read_message() {
         let data = message.into_data();
         let string_data = String::from_utf8(data).expect("Found invalid UTF-8 chars");
-        println!("Socket tick.");
+        let response: Result<WebsocketResponse, serde_json::Error> =
+            serde_json::from_str(&string_data);
+        match response {
+            Ok(response) => {
+                let response = response.k;
+                let symbol = response.s;
+                let kline = Kline {
+                    symbol: symbol.clone(),
+                    open_time: response.t,
+                    open: response.o,
+                    high: response.h,
+                    low: response.l,
+                    close: response.c,
+                    volume: response.v,
+                    close_time: response.T,
+                    quote_asset_volume: response.q,
+                    trades: response.n,
+                    taker_buy_base_asset_volume: response.V,
+                    taker_buy_quote_asset_volume: response.Q,
+                    ignore: response.B,
+                };
+                let connection = DB_POOL.get().unwrap();
+                match insert_kline_to_database(connection, kline).await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("{:?}", e)
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Error on socket {:?}", e)
+            }
+        }
     }
     // Disconnect
     conn.close().expect("Failed to disconnect");
@@ -60,8 +123,30 @@ async fn update() {
     }
 }
 
-pub async fn fetch_history() -> Result<(), String> {
-    let symbol = "BTCUSDT";
+async fn insert_kline_to_database(connection: &Pool<Sqlite>, kline: Kline) -> Result<(), String> {
+    sqlx::query(
+        r#"
+        INSERT OR REPLACE INTO klines (symbol, open_time, open, high, low, close, volume, close_time, quote_asset_volume, number_of_trades, taker_buy_base_asset_volume, taker_buy_quote_asset_volume)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+        "#,
+    )
+    .bind(kline.symbol)
+    .bind(kline.open_time)
+    .bind(kline.open)
+    .bind(kline.high)
+    .bind(kline.low)
+    .bind(kline.close)
+    .bind(kline.volume)
+    .bind(kline.close_time)
+    .bind(kline.quote_asset_volume)
+    .bind(kline.trades)
+    .bind(kline.taker_buy_base_asset_volume)
+    .bind(kline.taker_buy_quote_asset_volume)
+    .execute(connection).map_err(|e| format!("Error inserting a kline into Database. {:?}", e)).await?;
+    Ok(())
+}
+
+pub async fn fetch_history(symbol: &str) -> Result<(), String> {
     println!("Fetching {} history.", symbol);
     let config: Config = read_config();
     let credentials = Credentials::from_hmac(
@@ -110,6 +195,7 @@ pub async fn fetch_history() -> Result<(), String> {
         let mut new_klines: Vec<Kline> = Vec::new();
         for inner_array in data {
             let kline = Kline {
+                symbol: symbol.to_string(),
                 open_time: inner_array.0,
                 open: inner_array.1,
                 high: inner_array.2,
@@ -142,25 +228,12 @@ pub async fn fetch_history() -> Result<(), String> {
     } else {
         let connection = DB_POOL.get().unwrap();
         for kline in klines {
-            sqlx::query(
-                r#"
-                    INSERT INTO klines (symbol, open_time, open, high, low, close, volume, close_time, quote_asset_volume, number_of_trades, taker_buy_base_asset_volume, taker_buy_quote_asset_volume)
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-                "#,
-            )
-            .bind(symbol)
-            .bind(kline.open_time)
-            .bind(kline.open)
-            .bind(kline.high)
-            .bind(kline.low)
-            .bind(kline.close)
-            .bind(kline.volume)
-            .bind(kline.close_time)
-            .bind(kline.quote_asset_volume)
-            .bind(kline.trades)
-            .bind(kline.taker_buy_base_asset_volume)
-            .bind(kline.taker_buy_quote_asset_volume)
-            .execute(connection).map_err(|e| format!("Error inserting a kline into Database. {:?}", e)).await?;
+            match insert_kline_to_database(connection, kline).await {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("{:?}", e)
+                }
+            }
         }
         Ok(())
     }

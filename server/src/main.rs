@@ -52,7 +52,7 @@ fn main() {
     rt.block_on(async {
         // Call your async functions in sequence
         let init1 = database::initialize().await;
-        let init2 = book::fetch_history().await;
+        /*let init2 = book::fetch_history("BTCUSDT").await;
 
         // TODO: find better matching mechanism
         match (init1, init2) {
@@ -60,7 +60,7 @@ fn main() {
             (Ok(_), Err(e)) => println!("{:?}", e),
             (Err(e), Ok(_)) => println!("{:?}", e),
             (Err(e1), Err(e2)) => println!("{:1?} {:2?}", e1, e2),
-        }
+        }*/
     });
     rt.spawn(book::main());
     start_rocket().unwrap();

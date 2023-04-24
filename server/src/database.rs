@@ -62,7 +62,6 @@ pub async fn setup_tables() -> Result<(), String> {
             last_queried DATETIME NOT NULL
         );
         CREATE TABLE IF NOT EXISTS klines (
-            id INTEGER PRIMARY KEY,
             symbol TEXT NOT NULL,
             open_time INTEGER NOT NULL, 
             open REAL NOT NULL, 
@@ -74,7 +73,8 @@ pub async fn setup_tables() -> Result<(), String> {
             quote_asset_volume REAL NOT NULL, 
             number_of_trades INTEGER NOT NULL,
             taker_buy_base_asset_volume REAL NOT NULL, 
-            taker_buy_quote_asset_volume REAL NOT NULL
+            taker_buy_quote_asset_volume REAL NOT NULL,
+            PRIMARY KEY (open_time, symbol)
         );
         COMMIT;",
             )
