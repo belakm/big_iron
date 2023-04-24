@@ -1,38 +1,23 @@
-# Load required libraries
-library(DBI)
-library(dplyr)
-library(caret)
+library(RSQLite)
 
 # Connect to the SQLite database
-con <- dbConnect(RSQLite::SQLite(), dbname = "database.sqlite")
+conn <- dbConnect(RSQLite::SQLite(), "database.sqlite")
 
-# Load klines into a data frame
-klines <- dbGetQuery(con, "SELECT * FROM klines")
+# Query the klines table and retrieve the historical data
+query <- "SELECT * FROM klines WHERE symbol = 'BTCUSDT' ORDER BY open_time ASC"
+data <- dbGetQuery(conn, query)
 
-# Convert timestamp columns from integer to POSIXct
-klines$open_time <- as.POSIXct(klines$open_time, origin = "1970-01-01", tz = "UTC")
-klines$close_time <- as.POSIXct(klines$close_time, origin = "1970-01-01", tz = "UTC")
+# Preprocess the data
+data$open_time <- as.POSIXct(data$open_time/1000, origin="1970-01-01")
+data$close_time <- as.POSIXct(data$close_time/1000, origin="1970-01-01")
+data$range <- data$high - data$low
+data$target <- ifelse(data$close > data$open, "buy", "sell")
 
-# Split klines into training and testing sets
-train_index <- 1:floor(0.8 * nrow(klines))
-train_set <- klines[train_index, ]
-test_set <- klines[-train_index, ]
+# Train your analytical model on the preprocessed data
+model <- lm(target ~ range + volume + quote_asset_volume + trades + taker_buy_base_asset_volume + taker_buy_quote_asset_volume, data = data)
 
-# Define the target variable and the features
-target <- "close"
-features <- c("open", "high", "low", "volume")
+# Save the trained model to a file
+saveRDS(model, "models/prediction_model.rds")
 
-# Define the training control
-train_control <- trainControl(method = "cv", number = 5)
-
-# Train the model using the training set
-model <- train(train_set[, features], train_set[, target], method = "glmnet", trControl = train_control)
-
-# Test the model using the testing set
-predictions <- predict(model, test_set[, features])
-
-# Compute the accuracy of the model
-accuracy <- mean(predictions == test_set[, target])
-
-# Save the model to a file
-saveRDS(model, file = "/models/prediction.rds")
+# Disconnect from the database
+dbDisconnect(conn)

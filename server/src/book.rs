@@ -2,6 +2,7 @@ use crate::{
     database::DB_POOL,
     formatting::timestamp_to_string,
     load_config::{read_config, Config},
+    prediction_model,
 };
 use binance_spot_connector_rust::{
     http::Credentials,
@@ -100,9 +101,14 @@ async fn subscribe_to_price_updates() {
                 };
                 let connection = DB_POOL.get().unwrap();
                 match insert_kline_to_database(connection, kline).await {
-                    Ok(_) => (),
+                    Ok(_) => match prediction_model::run().await {
+                        Ok(signal) => println!("Kline analyzed: {:?}", signal),
+                        Err(e) => {
+                            println!("{:?}", e)
+                        }
+                    },
                     Err(e) => {
-                        println!("{:?}", e)
+                        println!("{:?}", e);
                     }
                 }
             }
@@ -113,8 +119,6 @@ async fn subscribe_to_price_updates() {
     }
     // Disconnect
     conn.close().expect("Failed to disconnect");
-
-    // TODO: Update to database
 }
 
 async fn update() {

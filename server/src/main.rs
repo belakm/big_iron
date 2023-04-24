@@ -2,9 +2,9 @@ mod book;
 mod database;
 mod formatting;
 mod load_config;
+mod prediction_model;
 // mod api;
 // mod plot;
-// mod prediction_model;
 
 use rocket::catch;
 use rocket::fs::FileServer;
