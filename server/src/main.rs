@@ -1,3 +1,5 @@
+// Main modules
+//
 mod book;
 mod database;
 mod formatting;
@@ -7,6 +9,8 @@ mod rlang_runner;
 // mod api;
 // mod plot;
 
+// Dependencies
+//
 use rocket::catch;
 use rocket::fs::FileServer;
 use rocket::fs::Options;
@@ -14,6 +18,10 @@ use rocket::futures::TryFutureExt;
 use rocket::http::Status;
 use rocket::Request;
 use tokio::runtime::Runtime;
+
+// Logging
+use env_logger::{Builder, Env};
+use log::LevelFilter;
 
 #[macro_use]
 extern crate rocket;
@@ -49,7 +57,13 @@ async fn start_rocket() -> Result<(), String> {
 }
 
 fn main() {
-    // Init R libs
+    // Set log level for libs that are too noisy
+    //
+    let mut builder = Builder::from_env(Env::default().default_filter_or("info"));
+    builder.filter_module("sqlx", LevelFilter::Off).init();
+
+    // Init R libs and start the program
+    //
     match rlang_runner::r_script("renv_install.R", None) {
         Ok(_) => {
             let rt = Runtime::new().unwrap();
@@ -72,3 +86,13 @@ fn main() {
         Err(e) => println!("Error in R: {:?}", e),
     }
 }
+
+// Getting START SYMBOL signal:
+//
+// Signal: (symbol, period)
+//
+// When signal is recieved:
+//
+// 1. Fetch historic data
+// 2. Subscribe to klines
+// 3. Create & Run the analytical model continuessly
